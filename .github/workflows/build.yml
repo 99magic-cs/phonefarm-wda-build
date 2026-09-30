@@ -1,0 +1,42 @@
+name: Build unsigned media-import WDA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - name: Fetch pinned public sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/appium/WebDriverAgent.git wda
+          git -C wda checkout --detach fb7932255359460b6962b14abada08ca70333195
+          git clone https://github.com/Git-Agni/prod-FARM-IOS-Core.git reference
+          git -C reference checkout --detach 3e936babd80723b49b3e594f9403b25363078e64
+          cd wda
+          patch --batch --forward -p5 < ../reference/Patches/appium-webdriveragent-8.9.1-absolute-touch.patch
+          patch --batch --forward -p5 < ../reference/Patches/appium-webdriveragent-8.9.1-sessionless-buttons.patch
+          grep -q '/wda/import-media' WebDriverAgentLib/Commands/FBTouchActionCommands.m
+      - name: Build unsigned device app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd wda
+          xcodebuild build-for-testing -project WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO ARCHS=arm64
+          mkdir -p ../artifact
+          ditto -c -k --sequesterRsrc --keepParent build/Build/Products/Debug-iphoneos/WebDriverAgentRunner-Runner.app ../artifact/WebDriverAgentRunner-unsigned.zip
+          cp LICENSE ../artifact/WDA-LICENSE
+          cp ../reference/LICENSE ../artifact/PATCH-LICENSE
+          cp ../reference/NOTICE ../artifact/PATCH-NOTICE
+          shasum -a 256 ../artifact/WebDriverAgentRunner-unsigned.zip > ../artifact/SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: unsigned-wda-media-import
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 7
