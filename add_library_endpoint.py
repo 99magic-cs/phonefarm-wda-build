@@ -7,7 +7,19 @@ text=source.read_text()
 anchor='    [[FBRoute POST:@"/wda/import-media"].withoutSession respondWithTarget:self action:@selector(handleImportMedia:)],'
 assert text.count(anchor)==1
 text=text.replace(anchor,anchor+'\n    [[FBRoute GET:@"/wda/phonefarm-library"].withoutSession respondWithTarget:self action:@selector(handlePhoneFarmLibrary:)],')
+text=text.replace(anchor,anchor+'\n    [[FBRoute POST:@"/wda/phonefarm-photos-permission"].withoutSession respondWithTarget:self action:@selector(handlePhoneFarmPhotosPermission:)],')
 method='''
++ (id<FBResponsePayload>)handlePhoneFarmPhotosPermission:(FBRouteRequest *)request
+{
+  PHAuthorizationStatus status = [PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelReadWrite];
+  if (status == PHAuthorizationStatusNotDetermined) {
+    // Return immediately; the operator, not automation, answers the system prompt.
+    [PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelReadWrite handler:^(PHAuthorizationStatus result) {}];
+    return FBResponseWithObject(@{ @"status": @"prompt_requested" });
+  }
+  return FBResponseWithObject(@{ @"status": @(status), @"fullAccess": @(status == PHAuthorizationStatusAuthorized) });
+}
+
 + (id<FBResponsePayload>)handlePhoneFarmLibrary:(FBRouteRequest *)request
 {
   // Do not prompt or return an incomplete library under limited permission.
