@@ -10,6 +10,7 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 30
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Fetch pinned public sources
         shell: bash
         run: |
@@ -22,6 +23,8 @@ jobs:
           patch --batch --forward -p5 < ../reference/Patches/appium-webdriveragent-8.9.1-absolute-touch.patch
           patch --batch --forward -p5 < ../reference/Patches/appium-webdriveragent-8.9.1-sessionless-buttons.patch
           grep -q '/wda/import-media' WebDriverAgentLib/Commands/FBTouchActionCommands.m
+      - name: Add read-only library snapshot
+        run: python3 add_library_endpoint.py
       - name: Build unsigned device app
         shell: bash
         run: |
@@ -29,6 +32,7 @@ jobs:
           cd wda
           xcodebuild build-for-testing -project WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO ARCHS=arm64
           mkdir -p ../artifact
+          find build/Build/Products/Debug-iphoneos/WebDriverAgentRunner-Runner.app -type d -name '*.dSYM' -prune -exec rm -rf '{}' +
           ditto -c -k --sequesterRsrc --keepParent build/Build/Products/Debug-iphoneos/WebDriverAgentRunner-Runner.app ../artifact/WebDriverAgentRunner-unsigned.zip
           cp LICENSE ../artifact/WDA-LICENSE
           cp ../reference/LICENSE ../artifact/PATCH-LICENSE
